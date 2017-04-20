@@ -101,7 +101,7 @@ void bn_trim(bignum &number)
 
 
 /*
- * add two bignums
+ * add bignum b to bignum b and store in bignum dest
  *
  * Bignums a and b _must_ be aligned in length and decimal point (see bn_pad)
  * and the result is not trimmed (see bn_trim)
@@ -121,6 +121,48 @@ void bn_add(bignum &dest, const bignum &a, const bignum &b)
                 dest.digits[i] += b.digits[i - 1];
                 dest.digits[i - 1] += dest.digits[i] / 10;
                 dest.digits[i] = dest.digits[i] % 10;
+        }
+}
+
+
+/*
+ * subtract bignum b from bignum a and store in bignum dest
+ */
+void bn_sub(bignum &dest, const bignum &a, const bignum &b)
+{
+        dest.signal = a.signal;
+        dest.digits = a.digits;
+        dest.length = a.length + 1;
+        dest.dpoint = a.dpoint + 1;
+
+        // might be needed for borrowing, if b > a
+        dest.digits.insert(0, 1, 0);
+
+        // now add elements in 'b' to current
+        for (size_t i = b.length; i > 0; i--) {
+                dest.digits[i] -= b.digits[i - 1];
+
+                // borrow if needed
+                if (dest.digits[i] < 0) {
+                        dest.digits[i] += 10;
+                        dest.digits[i - 1] -= 1;
+                }
+        }
+
+        // result may be negative
+        if (dest.digits[0] < 0) {
+                // minor (guaranteed) positive comp
+                std::string pcomp_digits{dest.digits, 1, dest.length - 1};
+                pcomp_digits.insert(0, 1, 0); // adjust length
+                bignum pcomp{dest.signal, pcomp_digits, dest.dpoint};
+
+                // major (guaranteed) negative comp
+                dest.digits[0] = -dest.digits[0];
+                dest.digits.replace(1, dest.length - 1, dest.length - 1, 0);
+
+                // readjust arithmetic
+                bn_sub(dest, dest, pcomp);
+                dest.signal = !dest.signal;  // ...now the signal is proper
         }
 }
 
@@ -183,12 +225,32 @@ int main(int argc, char *argv[])
                 bn_pad(number1, number2);
                 bn_add(result, number1, number2);
                 bn_trim(number1);
-                bn_trim(number1);
+                bn_trim(number2);
                 bn_trim(result);
 
                 std::cout << "+ original" << std::endl;
                 bn_print(number1);
                 bn_print(number2);
+
+                std::cout << "+ result" << std::endl;
+                bn_print(result);
+        }
+
+        std::cout << std::endl;
+        std::cout << "=========" << std::endl;
+        std::cout << "Test: Sub" << std::endl;
+        std::cout << "=========" << std::endl;
+        {
+                bignum result;
+                bn_pad(number1, number2);
+                bn_sub(result, number2, number1);
+                bn_trim(number2);
+                bn_trim(number1);
+                bn_trim(result);
+
+                std::cout << "+ original" << std::endl;
+                bn_print(number2);
+                bn_print(number1);
 
                 std::cout << "+ result" << std::endl;
                 bn_print(result);
