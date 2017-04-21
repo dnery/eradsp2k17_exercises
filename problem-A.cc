@@ -8,6 +8,9 @@
  * of characters representing the digits (0-9), the length of such string
  * (limited by size_t) and a decimal point position (as the index of '.'
  * in '<integral part>.<fractional part>', for example).
+ *
+ * Of all the possible implementations of big numbers of arbitrary length and
+ * precision, this ranks among the worst, probably. Do not replicate this.
  */
 struct bignum {
 
@@ -198,9 +201,10 @@ void bn_mult(bignum &dest, bignum &a, bignum &b)
         /*
          * length of x ~~ log10(x) + 1 (or, at most one-off from it)
          *
-         * The length of the resulting multiplication a*b would
-         * log10(a) + log10(b) + 1. Given, the previous, if I already know the
-         * lenghts of a and b (which I do), computing the log10 can be skipped.
+         * The length of the resulting multiplication a*b would be
+         * log10(a) + log10(b) + 1. If I already know the lenghts of a and b
+         * (which I do), computing the log10 of each can be skipped. Length of a
+         * + length of b + 1 guarantees at least 1 leading unused digit.
          */
         dest.signal = (a.signal == b.signal);
         dest.length = a.length + b.length + 1;
@@ -210,7 +214,7 @@ void bn_mult(bignum &dest, bignum &a, bignum &b)
                 - (b.length - b.dpoint);
 
         // now do simple simple multiply
-        #pragma omp parallel for collapse(2)
+        //#pragma omp parallel for collapse(2)
         for (size_t i = b.length; i > 0; i--) {
                 for (size_t j = a.length; j > 0; j--) {
                         dest.digits[i + j] += b.digits[i - 1] * a.digits[j - 1];
@@ -317,6 +321,7 @@ int main(int argc, char *argv[])
         {
                 bignum result;
                 bn_mult(result, number1, number2);
+                bn_trim(result);
 
                 std::cout << "+ original" << std::endl;
                 bn_print(number1);
