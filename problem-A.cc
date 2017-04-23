@@ -19,7 +19,7 @@ struct bignum {
         size_t          dpoint;         // decimal point position
         size_t          length;         // length of bignumber
 
-        explicit bignum(bool signal = 1, std::string digits = "", size_t dpoint = 0) :
+        explicit bignum(bool signal = true, std::string digits = "", size_t dpoint = 0) :
                 signal{signal},
                 digits{digits},
                 dpoint{dpoint},
@@ -81,32 +81,32 @@ void bn_pad(bignum &a, bignum &b)
  */
 void bn_trim(bignum &number)
 {
-        // to and fro (ignore this)
-        auto increase = [](char a) { return a + 48; };
-        auto decrease = [](char a) { return a - 48; };
-
-        // convert to string... (ignore this)
-        std::transform(number.digits.begin(), number.digits.end(),
-                        number.digits.begin(), increase);
-
-        // trim left
-        size_t ltrim = number.digits.find_first_not_of("0");
+        /*
+         * trim left
+         *
+         * If the search fails, the return is std::npos = -1 = max_size_t,
+         * which the decimal point is guaranteed to be smaller than (hopefully).
+         */
+        size_t ltrim = std::min(number.digits.find_first_not_of('\0'), number.dpoint);
         number.digits.erase(number.digits.begin(), number.digits.begin() + ltrim);
 
+        // next step depends on dpoint, so...
+        number.dpoint -= ltrim;
+
         // ENDING IS EXCLUSIVE, BEGINING IS INCLUSIVE
         // ENDING IS EXCLUSIVE, BEGINING IS INCLUSIVE
 
-        // trim right
-        size_t rtrim = number.digits.find_last_not_of("0") + 1;
+        /*
+         * trim right
+         *
+         * If the search fails, the return is std::npos = -1 = max_size_t;
+         * max_size_t + 1 = 0, which in turn will be smaller than the dpoint.
+         */
+        size_t rtrim = std::max(number.digits.find_last_not_of('\0') + 1, number.dpoint);
         number.digits.erase(number.digits.begin() + rtrim, number.digits.end());
 
-        // ...and back to numbers (ignore this)
-        std::transform(number.digits.begin(), number.digits.end(),
-                        number.digits.begin(), decrease);
-
-        // adjust size, point
-        number.dpoint -= ltrim;
-        number.length = rtrim;  // ltrim was already removed, so...
+        // ltrim was already removed, so...
+        number.length = rtrim;
 }
 
 
@@ -236,8 +236,10 @@ void bn_inverse(bignum &dest, bignum &source)
         // generate bignum from positive constant
         auto bn_pc_to_bignum = [](bignum &dest, size_t pc) {
 
+                size_t len_minus_one = (pc == 0 ? 0 : size_t(log10(pc)));
+
                 dest.signal = true;
-                dest.digits = std::string(size_t(log10(pc)) + 1, '\0');
+                dest.digits = std::string(len_minus_one + 1, '\0');
                 dest.length = dest.digits.size();
                 dest.dpoint = dest.digits.size();
 
@@ -245,14 +247,6 @@ void bn_inverse(bignum &dest, bignum &source)
                         dest.digits[i - 1] = pc % 10;
                         pc = pc / 10;
                 }
-        };
-
-        // elevate bignum to positive exponent
-        auto bn_elevate_pos = [](bignum &dest, size_t n) {
-
-                dest.digits.insert(dest.dpoint, n, '\0');
-                dest.dpoint += n;
-                dest.length += n;
         };
 
         // elevate bignum to negative exponent
@@ -268,49 +262,71 @@ void bn_inverse(bignum &dest, bignum &source)
                 dest.signal = true;
         };
 
+        // lay the base
+        dest = source;
+
+        // a = 1/b; if a*b == 1, then I found the inverse of b
         bignum one;
         bn_pc_to_bignum(one, 1);
 
+        // lower boundary for the binary search
         bignum lower;
         bn_pc_to_bignum(lower, 0);
 
+        // upper boundary for the binary search
         bignum upper;
         bn_pc_to_bignum(upper, 1);
 
+        /*
+         * how to set an appropriate value for the error margin?
+         *
+         * The current setting is absolute overkill. Perhaps this should be set
+         * manually, according to the precision desired from the PI number.
+         */
         bignum error;
         bn_pc_to_bignum(error, 1);
-        bn_elevate_neg(error, dest.length);
+        bn_elevate_neg(error, source.length * 2 + 1);
 
+        // half = (lower + upper) / 2; stores the bsearch target for each step
+        bignum half;
+
+        // if tester * source = 1 or tester - one < error, stop checking
         bignum tester;
-        dest.signal = source.signal;
-        dest.digits = source.digits;
-        dest.dpoint = source.dpoint;
-        dest.length = source.length;
 
         do {
                 // adjust search ranges
+                bn_trim(lower);
+                bn_trim(upper);
                 bn_pad(lower, upper);
                 bn_add(dest, lower, upper);
-                bn_half(dest, dest);
+                bn_half(half, dest);
 
                 // stop condition: value
-                bn_pad(dest, source);
-                bn_mult(tester, dest, source);
-                bn_pad(dest, one);
-                int comp = bn_compare(dest, one);
+                bn_trim(half);
+                bn_trim(source);
+                bn_pad(half, source);
+                bn_mult(tester, half, source);
+
+                bn_trim(one);
+                bn_trim(tester);
+                bn_pad(tester, one);
+                int comp = bn_compare(tester, one);
                 if (comp > 0)
-                        upper = dest;
+                        upper = half;
                 if (comp < 0)
-                        lower = dest;
+                        lower = half;
                 if (comp == 0)
                         break;
 
                 // stop condition: error
-                bn_pad(tester, one);
                 bn_sub(tester, tester, one);
-                bn_pad(tester, error);
+                bn_pad(error, tester);
+                bn_abs(tester);
 
         } while (bn_compare(tester, error) > 0);
+
+        // copy back this shit
+        dest = half;
 }
 
 
@@ -410,6 +426,26 @@ int main(int argc, char *argv[])
                 std::cout << "+ trimmed" << std::endl;
                 bn_print(number1);
                 bn_print(number2);
+
+                bignum testa{true, {0, 0, 0, 0, 0}, 2};
+                bignum testb{true, {8, 0, 0, 0, 0}, 3};
+
+                std::cout << "+ ultrim: original" << std::endl;
+                bn_print(testa);
+                bn_print(testb);
+
+                bn_trim(testa);
+                bn_trim(testb);
+
+                std::cout << "+ ultrim: trimmed" << std::endl;
+                bn_print(testa);
+                bn_print(testb);
+
+                bn_pad(testa, testb);
+
+                std::cout << "+ ultrim: padded" << std::endl;
+                bn_print(testa);
+                bn_print(testb);
         }
 
         std::cout << std::endl;
@@ -475,11 +511,14 @@ int main(int argc, char *argv[])
         std::cout << "==========" << std::endl;
         {
                 bignum result;
-                bn_half(result, number2);
+                bignum number{true, {1}, 1};
+                bn_half(result, number);
+                bn_half(number, result);
+                bn_half(result, number);
                 bn_trim(result);
 
                 std::cout << "+ original" << std::endl;
-                bn_print(number2);
+                bn_print(number);
 
                 std::cout << "+ result" << std::endl;
                 bn_print(result);
@@ -516,7 +555,23 @@ int main(int argc, char *argv[])
         std::cout << "==================" << std::endl;
         {
                 bignum result;
-                bn_inverse(result, number1);
+
+                std::cout << "+ original" << std::endl;
+                bn_print(number2);
+
+                std::cout << "+ result" << std::endl;
+                bn_inverse(result, number2);
+                bn_trim(result);
+                bn_print(result);
+
+                std::cout << "+ original" << std::endl;
+                bignum testa{true, {3}, 1};
+                bn_print(testa);
+
+                std::cout << "+ result" << std::endl;
+                bn_inverse(result, testa);
+                bn_trim(result);
+                bn_print(result);
         }
 
         return EXIT_SUCCESS;
