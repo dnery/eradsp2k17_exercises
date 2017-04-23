@@ -30,11 +30,17 @@ struct bignum {
 
 
 
+// arithmetics
 void bn_add(bignum &dest, const bignum &, bignum &);
 void bn_sub(bignum &dest, const bignum &, bignum &);
+void bn_mult(bignum &dest, const bignum &, const bignum &);
+void bn_half(bignum &dest, const bignum &source);
+
+// utilities
+int  bn_compare(const bignum&, const bignum &);
 void bn_pad(bignum &, bignum &);
 void bn_trim(bignum &);
-void bn_print(bignum &);  // PURE
+void bn_print(bignum &);
 
 
 
@@ -187,7 +193,7 @@ void bn_sub(bignum &dest, const bignum &a, bignum &b)
 
                 // major (guaranteed) negative comp
                 dest.digits[0] = -dest.digits[0];
-                dest.digits.replace(1, dest.length - 1, dest.length - 1, 0);
+                dest.digits.replace(1, dest.length - 1, dest.length - 1, '\0');
 
                 // readjust arithmetic
                 bn_sub(dest, dest, pcomp);
@@ -196,7 +202,7 @@ void bn_sub(bignum &dest, const bignum &a, bignum &b)
 }
 
 
-void bn_mult(bignum &dest, bignum &a, bignum &b)
+void bn_mult(bignum &dest, const bignum &a, const bignum &b)
 {
         /*
          * length of x ~~ log10(x) + 1 (or, at most one-off from it)
@@ -222,6 +228,138 @@ void bn_mult(bignum &dest, bignum &a, bignum &b)
                         dest.digits[i + j] = dest.digits[i + j] % 10;
                 }
         }
+}
+
+
+void bn_inverse(bignum &dest, bignum &source)
+{
+        // generate bignum from positive constant
+        auto bn_pc_to_bignum = [](bignum &dest, size_t pc) {
+
+                dest.signal = true;
+                dest.digits = std::string(size_t(log10(pc)) + 1, '\0');
+                dest.length = dest.digits.size();
+                dest.dpoint = dest.digits.size();
+
+                for (size_t i = dest.digits.size(); i > 0; i--) {
+                        dest.digits[i - 1] = pc % 10;
+                        pc = pc / 10;
+                }
+        };
+
+        // elevate bignum to positive exponent
+        auto bn_elevate_pos = [](bignum &dest, size_t n) {
+
+                dest.digits.insert(dest.dpoint, n, '\0');
+                dest.dpoint += n;
+                dest.length += n;
+        };
+
+        // elevate bignum to negative exponent
+        auto bn_elevate_neg = [](bignum &dest, size_t n) {
+
+                dest.digits.insert(0, n, '\0');
+                dest.length += n;
+        };
+
+        // absolute value of bignum
+        auto bn_abs = [](bignum &dest) {
+
+                dest.signal = true;
+        };
+
+        bignum one;
+        bn_pc_to_bignum(one, 1);
+
+        bignum lower;
+        bn_pc_to_bignum(lower, 0);
+
+        bignum upper;
+        bn_pc_to_bignum(upper, 1);
+
+        bignum error;
+        bn_pc_to_bignum(error, 1);
+        bn_elevate_neg(error, dest.length);
+
+        bignum tester;
+        dest.signal = source.signal;
+        dest.digits = source.digits;
+        dest.dpoint = source.dpoint;
+        dest.length = source.length;
+
+        do {
+                // adjust search ranges
+                bn_pad(lower, upper);
+                bn_add(dest, lower, upper);
+                bn_half(dest, dest);
+
+                // stop condition: value
+                bn_pad(dest, source);
+                bn_mult(tester, dest, source);
+                bn_pad(dest, one);
+                int comp = bn_compare(dest, one);
+                if (comp > 0)
+                        upper = dest;
+                if (comp < 0)
+                        lower = dest;
+                if (comp == 0)
+                        break;
+
+                // stop condition: error
+                bn_pad(tester, one);
+                bn_sub(tester, tester, one);
+                bn_pad(tester, error);
+
+        } while (bn_compare(tester, error) > 0);
+}
+
+
+void bn_half(bignum &dest, const bignum &source)
+{
+        dest.signal = source.signal;
+        dest.length = source.length;
+        dest.dpoint = source.dpoint;
+        dest.digits = std::string(dest.length, '\0');
+
+        // jump straight to the first non-zero element
+        size_t nonzero = source.digits.find_first_not_of('\0');
+
+        // remainder of each step
+        size_t remains = 0;
+
+        // do long division
+        for (size_t i = nonzero; i < source.length; i++) {
+                size_t dividend = remains * 10 + source.digits[i];
+                dest.digits[i] = dividend / 2;
+                remains = dividend % 2;
+        }
+
+        // process remains
+        while (remains > 0) {
+                remains *= 10;
+                dest.digits.insert(dest.digits.end(), 1, remains / 2);
+                remains = remains % 2;
+                dest.length++;
+        }
+}
+
+
+int bn_compare(const bignum &a, const bignum &b)
+{
+        int tendency = 0;
+
+        for (size_t i = 0; i < a.length; i++) {
+                /*
+                 * Numbers are aligned in length and decimal point, so the first
+                 * difference between digits already tells me which is greater.
+                 */
+                if (a.digits[i] > b.digits[i])
+                        return  1;
+                if (a.digits[i] < b.digits[i])
+                        return -1;
+        }
+
+        return tendency;
 }
 
 
@@ -329,6 +467,56 @@ int main(int argc, char *argv[])
 
                 std::cout << "+ result" << std::endl;
                 bn_print(result);
+        }
+
+        std::cout << std::endl;
+        std::cout << "==========" << std::endl;
+        std::cout << "Test: Half" << std::endl;
+        std::cout << "==========" << std::endl;
+        {
+                bignum result;
+                bn_half(result, number2);
+                bn_trim(result);
+
+                std::cout << "+ original" << std::endl;
+                bn_print(number2);
+
+                std::cout << "+ result" << std::endl;
+                bn_print(result);
+        }
+
+        std::cout << std::endl;
+        std::cout << "=============" << std::endl;
+        std::cout << "Test: Compare" << std::endl;
+        std::cout << "=============" << std::endl;
+        {
+                bn_pad(number1, number2);
+                int r1 = bn_compare(number1, number2);
+                int r2 = bn_compare(number2, number1);
+                int r3 = bn_compare(number1, number1);
+                bn_trim(number1);
+                bn_trim(number2);
+
+                std::cout << "+ comparison returns " << r1 << std::endl;
+                bn_print(number1);
+                bn_print(number2);
+
+                std::cout << "+ comparison returns " << r2 << std::endl;
+                bn_print(number2);
+                bn_print(number1);
+
+                std::cout << "+ comparison returns " << r3 << std::endl;
+                bn_print(number1);
+                bn_print(number1);
+        }
+
+        std::cout << std::endl;
+        std::cout << "==================" << std::endl;
+        std::cout << "Test: Mult-Inverse" << std::endl;
+        std::cout << "==================" << std::endl;
+        {
+                bignum result;
+                bn_inverse(result, number1);
         }
 
         return EXIT_SUCCESS;
