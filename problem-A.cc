@@ -572,6 +572,15 @@ int main(int argc, char *argv[])
                 bn_inverse(result, testa);
                 bn_trim(result);
                 bn_print(result);
+
+                std::cout << "+ original" << std::endl;
+                bignum testb{true, {4}, 1};
+                bn_print(testb);
+
+                std::cout << "+ result" << std::endl;
+                bn_inverse(result, testb);
+                bn_trim(result);
+                bn_print(result);
         }
 
         return EXIT_SUCCESS;
