@@ -1,5 +1,12 @@
 #include <bits/stdc++.h>  // dev stage only
 
+/*
+ * ==========================
+ * BEGIN BIGNUM LIB INTERFACE
+ * ==========================
+ */
+
+
 
 /*
  * bignum type
@@ -28,86 +35,242 @@ struct bignum {
         }
 };
 
-
-
 // arithmetics
-void bn_add(bignum &dest, const bignum &, bignum &);
-void bn_sub(bignum &dest, const bignum &, bignum &);
-void bn_mult(bignum &dest, const bignum &, const bignum &);
-void bn_half(bignum &dest, const bignum &source);
+void bn_add(bignum &dest, const bignum &a, bignum &b);          // add bignums a and b, store result in dest
+void bn_sub(bignum &dest, const bignum &a, bignum &b);          // subtract bignums a and b, store result in dest
+void bn_mult(bignum &dest, const bignum &a, const bignum &b);   // multiply bignums a andm b, store result in dest
+void bn_half(bignum &dest);                                     // divide bignum  dest by 2 in-place
+void bn_inverse(bignum &dest);                                  // find mult-inverse of bignum dest in-place
 
 // utilities
-int  bn_compare(const bignum&, const bignum &);
-void bn_pad(bignum &, bignum &);
-void bn_trim(bignum &);
-void bn_print(bignum &);
+void bn_pad(bignum &a, bignum &b);                              // pad bignums a and b with zeroes so they're aligned (and same sized)
+void bn_trim(bignum &number);                                   // trim trailing and leading zeroes from bignum number
+int  bn_abscompare(const bignum &a, const bignum &b);           // compare absolute values of bignums a and b (as in a - b)
+void bn_pc_to_bignum(bignum &dest, const size_t pc);            // convert positive constant pc into a bignum, store result in dest
+
+// I/O
+void bn_print(bignum &number);                                  // print an arbitrary length and precision bignum number
 
 
 
 /*
- * align (pad with zeroes) bignums a and b in length and decimal point
+ * =============
+ * BEGIN PROGRAM
+ * =============
  */
-void bn_pad(bignum &a, bignum &b)
+
+
+
+int main(int argc, char *argv[])
 {
-        // INTEGRAL PART
-        size_t intpart_size = std::max(a.dpoint, b.dpoint);
-        size_t a_fwpad = intpart_size - a.dpoint;
-        size_t b_fwpad = intpart_size - b.dpoint;
+        #ifndef NDEBUG
+        bignum number1{1, {2, 8, 4, 7, 9, 8, 4, 2, 6, 5, 3, 2, 0, 2}, 10};
+        bignum number2{1, {8, 4, 9, 6, 7, 0, 4, 2, 1, 4, 5, 5, 2, 3}, 9};
 
-        a.digits.insert(0, a_fwpad, 0);
-        b.digits.insert(0, b_fwpad, 0);
+        std::cout << std::endl;
+        std::cout << "================" << std::endl;
+        std::cout << "Test: Pad & Trim" << std::endl;
+        std::cout << "================" << std::endl;
+        {
+                std::cout << "+ original" << std::endl;
+                bn_print(number1);
+                bn_print(number2);
 
-        // FRACTIONAL PART
-        size_t decpart_size = std::max(a.length - a.dpoint,
-                        b.length - b.dpoint);
-        size_t a_backpad = decpart_size - (a.length - a.dpoint);
-        size_t b_backpad = decpart_size - (b.length - b.dpoint);
+                bn_pad(number1, number2);
 
-        a.digits.insert(a.digits.end(), a_backpad, 0);
-        b.digits.insert(b.digits.end(), b_backpad, 0);
+                std::cout << "+ padded" << std::endl;
+                bn_print(number1);
+                bn_print(number2);
 
-        // adjust lengths...
-        a.length += a_fwpad + a_backpad;
-        b.length += b_fwpad + b_backpad;
+                bn_trim(number1);
+                bn_trim(number2);
 
-        // ...and point positions
-        a.dpoint += a_fwpad;
-        b.dpoint += b_fwpad;
+                std::cout << "+ trimmed" << std::endl;
+                bn_print(number1);
+                bn_print(number2);
+
+                bignum testa{true, {0, 0, 0, 0, 0}, 2};
+                bignum testb{true, {8, 0, 0, 0, 0}, 3};
+
+                std::cout << "+ ultrim: original" << std::endl;
+                bn_print(testa);
+                bn_print(testb);
+
+                bn_trim(testa);
+                bn_trim(testb);
+
+                std::cout << "+ ultrim: trimmed" << std::endl;
+                bn_print(testa);
+                bn_print(testb);
+
+                bn_pad(testa, testb);
+
+                std::cout << "+ ultrim: padded" << std::endl;
+                bn_print(testa);
+                bn_print(testb);
+        }
+
+        std::cout << std::endl;
+        std::cout << "=========" << std::endl;
+        std::cout << "Test: Add" << std::endl;
+        std::cout << "=========" << std::endl;
+        {
+                std::cout << "+ original" << std::endl;
+                bn_print(number1);
+                bn_print(number2);
+
+                bignum result;
+                bn_pad(number1, number2);
+                bn_add(result, number1, number2);
+                bn_trim(result);
+
+                std::cout << "+ result" << std::endl;
+                bn_print(result);
+        }
+
+        std::cout << std::endl;
+        std::cout << "=========" << std::endl;
+        std::cout << "Test: Sub" << std::endl;
+        std::cout << "=========" << std::endl;
+        {
+                std::cout << "+ original" << std::endl;
+                bn_print(number2);
+                bn_print(number1);
+
+                bignum result;
+                bn_pad(number1, number2);
+                bn_sub(result, number2, number1);
+                bn_trim(result);
+
+                std::cout << "+ result" << std::endl;
+                bn_print(result);
+
+                std::cout << "+ original" << std::endl;
+                bn_print(number1);
+                bn_print(number2);
+
+                bn_sub(result, number1, number2);
+                bn_trim(result);
+
+                std::cout << "+ result" << std::endl;
+                bn_print(result);
+        }
+
+        std::cout << std::endl;
+        std::cout << "==========" << std::endl;
+        std::cout << "Test: Mult" << std::endl;
+        std::cout << "==========" << std::endl;
+        {
+                std::cout << "+ original" << std::endl;
+                bn_print(number1);
+                bn_print(number2);
+
+                bignum result;
+                bn_mult(result, number1, number2);
+                bn_trim(result);
+
+                std::cout << "+ result" << std::endl;
+                bn_print(result);
+        }
+
+        std::cout << std::endl;
+        std::cout << "==========" << std::endl;
+        std::cout << "Test: Half" << std::endl;
+        std::cout << "==========" << std::endl;
+        {
+                bignum number{true, {1}, 1};
+                std::cout << "+ original" << std::endl;
+                bn_print(number);
+
+                bn_half(number);
+                std::cout << "+ result" << std::endl;
+                bn_print(number);
+
+                bn_half(number);
+                std::cout << "+ result" << std::endl;
+                bn_print(number);
+
+                bn_half(number);
+                std::cout << "+ result" << std::endl;
+                bn_print(number);
+        }
+
+        std::cout << std::endl;
+        std::cout << "=============" << std::endl;
+        std::cout << "Test: Compare" << std::endl;
+        std::cout << "=============" << std::endl;
+        {
+                bn_print(number1);
+                bn_print(number2);
+                bn_pad(number1, number2);
+                int rc = bn_abscompare(number1, number2);
+                std::cout << "+ comparison returns " << rc << std::endl;
+
+                bn_print(number2);
+                bn_print(number1);
+                rc = bn_abscompare(number2, number1);
+                std::cout << "+ comparison returns " << rc << std::endl;
+
+                bn_print(number1);
+                bn_print(number1);
+                rc = bn_abscompare(number1, number1);
+                std::cout << "+ comparison returns " << rc << std::endl;
+        }
+
+        std::cout << std::endl;
+        std::cout << "==================" << std::endl;
+        std::cout << "Test: Mult-Inverse" << std::endl;
+        std::cout << "==================" << std::endl;
+        {
+                std::cout << "+ original" << std::endl;
+                bn_print(number2);
+
+                bignum result = number2;
+                bn_inverse(result);
+                bn_trim(result);
+
+                std::cout << "+ result" << std::endl;
+                bn_print(result);
+
+                //
+
+                bignum testa{true, {3}, 1};
+                std::cout << "+ original" << std::endl;
+                bn_print(testa);
+
+                result = testa;
+                bn_inverse(result);
+                bn_trim(result);
+
+                std::cout << "+ result" << std::endl;
+                bn_print(result);
+
+                //
+
+                bignum testb{true, {4}, 1};
+                std::cout << "+ original" << std::endl;
+                bn_print(testb);
+
+                result = testb;
+                bn_inverse(result);
+                bn_trim(result);
+
+                std::cout << "+ result" << std::endl;
+                bn_print(result);
+        }
+        #endif
+
+        return EXIT_SUCCESS;
 }
+
 
 
 /*
- * trim leading and trailing zeroes from a bignum
+ * =====================
+ * BEGIN BIGNUM LIB IMPL
+ * =====================
  */
-void bn_trim(bignum &number)
-{
-        /*
-         * trim left
-         *
-         * If the search fails, the return is std::npos = -1 = max_size_t,
-         * which the decimal point is guaranteed to be smaller than (hopefully).
-         */
-        size_t ltrim = std::min(number.digits.find_first_not_of('\0'), number.dpoint);
-        number.digits.erase(number.digits.begin(), number.digits.begin() + ltrim);
 
-        // next step depends on dpoint, so...
-        number.dpoint -= ltrim;
-
-        // ENDING IS EXCLUSIVE, BEGINING IS INCLUSIVE
-        // ENDING IS EXCLUSIVE, BEGINING IS INCLUSIVE
-
-        /*
-         * trim right
-         *
-         * If the search fails, the return is std::npos = -1 = max_size_t;
-         * max_size_t + 1 = 0, which in turn will be smaller than the dpoint.
-         */
-        size_t rtrim = std::max(number.digits.find_last_not_of('\0') + 1, number.dpoint);
-        number.digits.erase(number.digits.begin() + rtrim, number.digits.end());
-
-        // ltrim was already removed, so...
-        number.length = rtrim;
-}
 
 
 /*
@@ -231,110 +394,12 @@ void bn_mult(bignum &dest, const bignum &a, const bignum &b)
 }
 
 
-void bn_inverse(bignum &dest, bignum &source)
+void bn_half(bignum &dest)
 {
-        // generate bignum from positive constant
-        auto bn_pc_to_bignum = [](bignum &dest, size_t pc) {
+        // ...for leisure
+        bignum source = dest;
 
-                size_t len_minus_one = (pc == 0 ? 0 : size_t(log10(pc)));
-
-                dest.signal = true;
-                dest.digits = std::string(len_minus_one + 1, '\0');
-                dest.length = dest.digits.size();
-                dest.dpoint = dest.digits.size();
-
-                for (size_t i = dest.digits.size(); i > 0; i--) {
-                        dest.digits[i - 1] = pc % 10;
-                        pc = pc / 10;
-                }
-        };
-
-        // elevate bignum to negative exponent
-        auto bn_elevate_neg = [](bignum &dest, size_t n) {
-
-                dest.digits.insert(0, n, '\0');
-                dest.length += n;
-        };
-
-        // absolute value of bignum
-        auto bn_abs = [](bignum &dest) {
-
-                dest.signal = true;
-        };
-
-        // lay the base
-        dest = source;
-
-        // a = 1/b; if a*b == 1, then I found the inverse of b
-        bignum one;
-        bn_pc_to_bignum(one, 1);
-
-        // lower boundary for the binary search
-        bignum lower;
-        bn_pc_to_bignum(lower, 0);
-
-        // upper boundary for the binary search
-        bignum upper;
-        bn_pc_to_bignum(upper, 1);
-
-        /*
-         * how to set an appropriate value for the error margin?
-         *
-         * The current setting is absolute overkill. Perhaps this should be set
-         * manually, according to the precision desired from the PI number.
-         */
-        bignum error;
-        bn_pc_to_bignum(error, 1);
-        bn_elevate_neg(error, source.length * 2 + 1);
-
-        // half = (lower + upper) / 2; stores the bsearch target for each step
-        bignum half;
-
-        // if tester * source = 1 or tester - one < error, stop checking
-        bignum tester;
-
-        do {
-                // adjust search ranges
-                bn_trim(lower);
-                bn_trim(upper);
-                bn_pad(lower, upper);
-                bn_add(dest, lower, upper);
-                bn_half(half, dest);
-
-                // stop condition: value
-                bn_trim(half);
-                bn_trim(source);
-                bn_pad(half, source);
-                bn_mult(tester, half, source);
-
-                bn_trim(one);
-                bn_trim(tester);
-                bn_pad(tester, one);
-                int comp = bn_compare(tester, one);
-                if (comp > 0)
-                        upper = half;
-                if (comp < 0)
-                        lower = half;
-                if (comp == 0)
-                        break;
-
-                // stop condition: error
-                bn_sub(tester, tester, one);
-                bn_pad(error, tester);
-                bn_abs(tester);
-
-        } while (bn_compare(tester, error) > 0);
-
-        // copy back this shit
-        dest = half;
-}
-
-
-void bn_half(bignum &dest, const bignum &source)
-{
-        dest.signal = source.signal;
-        dest.length = source.length;
-        dest.dpoint = source.dpoint;
+        // clear the target string
         dest.digits = std::string(dest.length, '\0');
 
         // jump straight to the first non-zero element
@@ -360,7 +425,148 @@ void bn_half(bignum &dest, const bignum &source)
 }
 
 
-int bn_compare(const bignum &a, const bignum &b)
+void bn_inverse(bignum &dest)
+{
+        // ...for leisure
+        bignum source = dest;
+
+        // elevate bignum to negative exponent
+        auto bn_elevate_neg = [](bignum &dest, size_t n) {
+
+                dest.digits.insert(0, n, '\0');
+                dest.length += n;
+        };
+
+        // absolute value of bignum
+        auto bn_abs = [](bignum &dest) {
+
+                dest.signal = true;
+        };
+
+        // a = 1/b; if a*b == 1, then I found the inverse of b
+        bignum one;
+        bn_pc_to_bignum(one, 1);
+
+        // lower boundary for the binary search
+        bignum lower;
+        bn_pc_to_bignum(lower, 0);
+
+        // upper boundary for the binary search
+        bignum upper;
+        bn_pc_to_bignum(upper, 1);
+
+        /*
+         * how to set an appropriate value for the error margin?
+         *
+         * The current setting is absolute overkill. Perhaps this should be set
+         * manually, according to the precision desired from the PI number.
+         */
+        bignum error;
+        bn_pc_to_bignum(error, 1);
+        bn_elevate_neg(error, source.length * 2 + 1);
+
+        // if tester * source = 1 or tester - one < error, stop checking
+        bignum tester;
+
+        do {
+                // adjust search ranges
+                bn_pad(lower, upper);
+                bn_add(dest, lower, upper);
+                bn_half(dest);
+
+                // stop condition: value (get tester value)
+                bn_trim(dest);
+                bn_pad(dest, source);
+                bn_mult(tester, dest, source);
+
+                // stop condition: value (actually do test)
+                bn_trim(tester);
+                bn_pad(tester, one);
+                int comp = bn_abscompare(tester, one);
+
+                if (comp == 0) {        // value found
+                        break;
+                } else if (comp > 0) {  // adjust range
+                        upper = dest;
+                } else if (comp < 0) {  // adjust range
+                        lower = dest;
+                }
+
+                // stop condition: error
+                bn_sub(tester, tester, one);
+                bn_pad(tester, error);
+
+        } while (bn_abscompare(tester, error) > 0);
+}
+
+
+/*
+ * align (pad with zeroes) bignums a and b in length and decimal point
+ */
+void bn_pad(bignum &a, bignum &b)
+{
+        // INTEGRAL PART
+        size_t intpart_size = std::max(a.dpoint, b.dpoint);
+        size_t a_fwpad = intpart_size - a.dpoint;
+        size_t b_fwpad = intpart_size - b.dpoint;
+
+        a.digits.insert(0, a_fwpad, 0);
+        b.digits.insert(0, b_fwpad, 0);
+
+        // FRACTIONAL PART
+        size_t decpart_size = std::max(a.length - a.dpoint,
+                        b.length - b.dpoint);
+        size_t a_backpad = decpart_size - (a.length - a.dpoint);
+        size_t b_backpad = decpart_size - (b.length - b.dpoint);
+
+        a.digits.insert(a.digits.end(), a_backpad, 0);
+        b.digits.insert(b.digits.end(), b_backpad, 0);
+
+        // adjust lengths...
+        a.length += a_fwpad + a_backpad;
+        b.length += b_fwpad + b_backpad;
+
+        // ...and point positions
+        a.dpoint += a_fwpad;
+        b.dpoint += b_fwpad;
+}
+
+
+/*
+ * trim leading and trailing zeroes from a bignum
+ */
+void bn_trim(bignum &number)
+{
+        /*
+         * trim left
+         *
+         * If the search fails, the return is std::npos = -1 = max_size_t,
+         * which the decimal point is guaranteed to be smaller than (hopefully).
+         */
+        size_t ltrim = std::min(number.digits.find_first_not_of('\0'), number.dpoint);
+        number.digits.erase(number.digits.begin(), number.digits.begin() + ltrim);
+
+        // next step depends on dpoint, so...
+        number.dpoint -= ltrim;
+
+        // ENDING IS EXCLUSIVE, BEGINING IS INCLUSIVE
+        // ENDING IS EXCLUSIVE, BEGINING IS INCLUSIVE
+
+        /*
+         * trim right
+         *
+         * If the search fails, the return is std::npos = -1 = max_size_t;
+         * max_size_t + 1 = 0, which in turn will be smaller than the dpoint.
+         */
+        size_t rtrim = std::max(number.digits.find_last_not_of('\0') + 1, number.dpoint);
+        number.digits.erase(number.digits.begin() + rtrim, number.digits.end());
+
+        // ltrim was already removed, so...
+        number.length = rtrim;
+}
+
+
+int bn_abscompare(const bignum &a, const bignum &b)
 {
         int tendency = 0;
 
@@ -377,6 +583,22 @@ int bn_compare(const bignum &a, const bignum &b)
 
         return tendency;
 }
+
+
+void bn_pc_to_bignum(bignum &dest, size_t pc) {
+
+        size_t len_minus_one = (pc == 0 ? 0 : size_t(log10(pc)));
+
+        dest.signal = true;
+        dest.digits = std::string(len_minus_one + 1, '\0');
+        dest.length = dest.digits.size();
+        dest.dpoint = dest.digits.size();
+
+        for (size_t i = dest.digits.size(); i > 0; i--) {
+                dest.digits[i - 1] = pc % 10;
+                pc = pc / 10;
+        }
+};
 
 
 void bn_print(bignum &number)
@@ -397,191 +619,4 @@ void bn_print(bignum &number)
                 std::cout << char(number.digits[i] + 48);
 
         std::cout << std::endl;
-}
-
-
-int main(int argc, char *argv[])
-{
-        bignum number1{1, {2, 8, 4, 7, 9, 8, 4, 2, 6, 5, 3, 2, 0, 2}, 10};
-        bignum number2{1, {8, 4, 9, 6, 7, 0, 4, 2, 1, 4, 5, 5, 2, 3}, 9};
-
-        std::cout << std::endl;
-        std::cout << "================" << std::endl;
-        std::cout << "Test: Pad & Trim" << std::endl;
-        std::cout << "================" << std::endl;
-        {
-                std::cout << "+ original" << std::endl;
-                bn_print(number1);
-                bn_print(number2);
-
-                bn_pad(number1, number2);
-
-                std::cout << "+ padded" << std::endl;
-                bn_print(number1);
-                bn_print(number2);
-
-                bn_trim(number1);
-                bn_trim(number2);
-
-                std::cout << "+ trimmed" << std::endl;
-                bn_print(number1);
-                bn_print(number2);
-
-                bignum testa{true, {0, 0, 0, 0, 0}, 2};
-                bignum testb{true, {8, 0, 0, 0, 0}, 3};
-
-                std::cout << "+ ultrim: original" << std::endl;
-                bn_print(testa);
-                bn_print(testb);
-
-                bn_trim(testa);
-                bn_trim(testb);
-
-                std::cout << "+ ultrim: trimmed" << std::endl;
-                bn_print(testa);
-                bn_print(testb);
-
-                bn_pad(testa, testb);
-
-                std::cout << "+ ultrim: padded" << std::endl;
-                bn_print(testa);
-                bn_print(testb);
-        }
-
-        std::cout << std::endl;
-        std::cout << "=========" << std::endl;
-        std::cout << "Test: Add" << std::endl;
-        std::cout << "=========" << std::endl;
-        {
-                bignum result;
-                bn_pad(number1, number2);
-                bn_add(result, number1, number2);
-                bn_trim(number1);
-                bn_trim(number2);
-                bn_trim(result);
-
-                std::cout << "+ original" << std::endl;
-                bn_print(number1);
-                bn_print(number2);
-
-                std::cout << "+ result" << std::endl;
-                bn_print(result);
-        }
-
-        std::cout << std::endl;
-        std::cout << "=========" << std::endl;
-        std::cout << "Test: Sub" << std::endl;
-        std::cout << "=========" << std::endl;
-        {
-                bignum result;
-                bn_pad(number1, number2);
-                bn_sub(result, number2, number1);
-                bn_trim(number2);
-                bn_trim(number1);
-                bn_trim(result);
-
-                std::cout << "+ original" << std::endl;
-                bn_print(number2);
-                bn_print(number1);
-
-                std::cout << "+ result" << std::endl;
-                bn_print(result);
-        }
-
-        std::cout << std::endl;
-        std::cout << "==========" << std::endl;
-        std::cout << "Test: Mult" << std::endl;
-        std::cout << "==========" << std::endl;
-        {
-                bignum result;
-                bn_mult(result, number1, number2);
-                bn_trim(result);
-
-                std::cout << "+ original" << std::endl;
-                bn_print(number1);
-                bn_print(number2);
-
-                std::cout << "+ result" << std::endl;
-                bn_print(result);
-        }
-
-        std::cout << std::endl;
-        std::cout << "==========" << std::endl;
-        std::cout << "Test: Half" << std::endl;
-        std::cout << "==========" << std::endl;
-        {
-                bignum result;
-                bignum number{true, {1}, 1};
-                bn_half(result, number);
-                bn_half(number, result);
-                bn_half(result, number);
-                bn_trim(result);
-
-                std::cout << "+ original" << std::endl;
-                bn_print(number);
-
-                std::cout << "+ result" << std::endl;
-                bn_print(result);
-        }
-
-        std::cout << std::endl;
-        std::cout << "=============" << std::endl;
-        std::cout << "Test: Compare" << std::endl;
-        std::cout << "=============" << std::endl;
-        {
-                bn_pad(number1, number2);
-                int r1 = bn_compare(number1, number2);
-                int r2 = bn_compare(number2, number1);
-                int r3 = bn_compare(number1, number1);
-                bn_trim(number1);
-                bn_trim(number2);
-
-                std::cout << "+ comparison returns " << r1 << std::endl;
-                bn_print(number1);
-                bn_print(number2);
-
-                std::cout << "+ comparison returns " << r2 << std::endl;
-                bn_print(number2);
-                bn_print(number1);
-
-                std::cout << "+ comparison returns " << r3 << std::endl;
-                bn_print(number1);
-                bn_print(number1);
-        }
-
-        std::cout << std::endl;
-        std::cout << "==================" << std::endl;
-        std::cout << "Test: Mult-Inverse" << std::endl;
-        std::cout << "==================" << std::endl;
-        {
-                bignum result;
-
-                std::cout << "+ original" << std::endl;
-                bn_print(number2);
-
-                std::cout << "+ result" << std::endl;
-                bn_inverse(result, number2);
-                bn_trim(result);
-                bn_print(result);
-
-                std::cout << "+ original" << std::endl;
-                bignum testa{true, {3}, 1};
-                bn_print(testa);
-
-                std::cout << "+ result" << std::endl;
-                bn_inverse(result, testa);
-                bn_trim(result);
-                bn_print(result);
-
-                std::cout << "+ original" << std::endl;
-                bignum testb{true, {4}, 1};
-                bn_print(testb);
-
-                std::cout << "+ result" << std::endl;
-                bn_inverse(result, testb);
-                bn_trim(result);
-                bn_print(result);
-        }
-
-        return EXIT_SUCCESS;
 }
